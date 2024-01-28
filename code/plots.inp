@@ -1,0 +1,139 @@
+set verbose off
+open mroz87.gdt
+
+set workdir "/home/artur/git/presentations/gretl_programm/figures/"
+
+gnuplot WE log(FAMINC) --output="scatterplot.png"
+
+gnuplot WE log(FAMINC) CIT --dummy \
+  --output="scatterplot_factorized.png" \
+  { set title "Some cool title" font ',15';\
+  set linetype 1 lc rgb 'orange' ps 1;\
+  set linetype 2 lc rgb 'blue' ps 0.5;\
+  set xtics font ',15';\
+  set grid;}
+
+
+boxplot FAMINC WE --factorized \
+  --output="boxplot_factorized.png" \
+  { set grid; set title "Foo" font ',15';\
+  set xlabel "Ausbildungsjahre" font ',14';}
+
+
+list Y = WHRS WW HHRS
+scatters WE ; Y --output="scatters_matrix.png"
+
+kdplot FAMINC --output="kdplot.png"
+
+freq FAMINC --gamma --plot="freq_gamma.png"
+
+list L = 1..5
+corr L --triangle --plot="correl_triangle.png"
+
+open data4-10 --preserve
+strings MyPlots = empty
+
+gpbuild MyPlots
+    gnuplot ENROLL CATHOL
+    gnuplot ENROLL INCOME
+    gnuplot ENROLL COLLEGE
+    boxplot INCOME REGION --factorized
+end gpbuild
+gridplot MyPlots --output=display
+
+boxplot INCOME REGION --factorized --output=display
+
+
+# Scatterplot with Labels
+open mrw.gdt --quiet
+print school --byobs --range=1:5
+gnuplot gdp60 school --output=display
+markers --to-array=S
+series state = S
+print state --byobs
+
+
+##################################
+# HEATMAP
+
+open grunfeld.gdt --quiet
+# Install and load the package
+pkg install heatmap
+include heatmap.gfn
+# help heatmap
+
+# Restict sample to the first 4 panel units
+smpl $unit < 5 --restrict
+
+# Add information to the plot
+bundle Options = \
+  _(title = "Matrix A with contour lines",
+  quiet = TRUE, xlabel = "Time dimension",
+  ylabel = "Company", dest = "heatmap.png")
+
+scalar T = $pd
+scalar N = $nobs / $pd
+matrix m = value
+
+matrix M = mshape(m, T, N)'
+heatmap(M, Options)
+
+
+
+
+# PairPlot
+open abdata --quiet
+list y = n k w
+series factor = IND
+
+bundle opts = _(transparency_level = 175,
+  centroid = "median",
+  tics = FALSE,
+  pointsize = 1.5,
+  centroid_pointsize = 3,
+  centroid_linewidth = 3,
+  height = 600,
+  width = 600)
+opts.filename = "pairplot_factorized.png"
+PairPlot(y, factor, opts)
+
+
+
+#
+nulldata 4
+series y = {1, 2, 3, 4}
+series x = normal()
+
+strings S = defarray("Artur", "Fritzi",
+  "Katharina", "Olga")
+markers --from-array=S
+
+print y x -o
+
+# Berühre die Datenunkte
+# und die Labels erscheinen
+gnuplot y x --output=display
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

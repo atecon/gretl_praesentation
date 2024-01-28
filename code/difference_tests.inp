@@ -1,0 +1,73 @@
+set verbose off
+clear
+
+series Outlier = (abs(Diff_rsk) > 1.5)
+
+ols Diff_rsk const Outlier --robust
+restrict --bootstrap
+    b[const] = 0
+end restrict
+
+difftest V_rsk_cat N_rsk_cat --rank-sum
+difftest V_rsk_cat N_rsk_cat --signed-rank   # Wilcoxon rank test
+
+series gender = randgen(i, 0, 1)
+
+ols Diff_rsk const gender --robust
+
+smpl gender == 1 --restrict
+ols Diff_rsk const --robust
+
+
+
+##################
+## Non-parametric difference tests
+##################
+set seed 1234 	# only to ensure replicability
+nulldata 100 	# cross-sectional dataset
+
+# Create some random variables
+series y = normal(0, 2)  # expected value 0
+series x = normal(10, 2)  # expected value 2
+list L = y x			# define a list of series which can be handy
+
+# Stats and plot
+summary L --simple
+boxplot L --output=display
+freq y --normal --plot=display
+
+# Non-parametric difference tests
+help difftest			# see the help for information
+
+difftest y x --sign   # Sign test -- less powerful
+printf "\nP-value of the Sign-test = %.2f (test-stat = %g)\n", $pvalue, $test
+
+difftest y x --rank-sum   # Wilcoxon rank-sum test (aka Mann-Whitney U test)
+printf "\nP-value of the Wilcoxon rank-sum test = %.2f (test-stat = %g)\n", $pvalue, $test
+
+difftest y x --signed-rank   # Wilcoxon rank test
+
+
+
+###############
+# Let's open some sample dataset -> via GUI: File -> Open data -> Sample file -> gretl
+###############
+open mroz87.gdt
+
+boxplot HW CIT --factorized --output=display \
+  { set title "Wages of men in small and large cities" font ',15'; }
+
+# Regression for explaining Husband's wage by CIT (0: lives in small city, 1: lives in large city)
+ols HW const CIT --robust   # robust standard errors wrt eventual heteroskedasticity
+printf "\nThe null hypothesis that wages in large cities are equal  \n\
+  to wages in small cities can be rejected at the %.2f pct. \n\
+  significance level\n", $pvalue
+
+# Run a restriction by hand
+help restrict
+
+# Test the null that hourly wages are on average 3$ higher in large cities
+restrict --bootstrap
+    b[CIT] = 3
+end restrict
+

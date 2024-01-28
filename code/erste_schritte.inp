@@ -1,0 +1,233 @@
+clear
+set verbose off
+
+string DIR = "/home/artur/git/presentations/gretl_programm/"
+set workdir "@DIR"  # Arbeitsordner definieren
+
+#################################################
+# Grundlagen
+
+# Erstelle Datensatz n=3
+nulldata 3
+
+# Normalverteilte Zufallsvariable
+# mean = 4, std-dev = 0.5
+series y = normal(4, 0.5)
+
+series y_sq = y^2
+series log_y = log(y)
+series exp_y = exp(y)
+series x = {1, 2, 3}'
+
+series z = y - x
+
+print y y_sq log_y exp_y x z --byobs
+
+
+##############################
+# Deskriptive Statistiken
+#open "./data/abdata.csv" --preserve
+set verbose off
+open abdata.gdt --quiet
+list Y = IND YEAR n 
+summary Y --simple
+matrix stats = $result
+print stats
+
+# Sample restringieren und Statistiken je Ausprägung
+smpl YEAR >= 1976 && YEAR <= 1978 --restrict
+summary Y --simple
+
+smpl full
+summary Y --simple
+
+set verbose off
+open abdata.gdt --quiet
+list Y = n w
+summary Y --by=IND --simple
+
+
+
+# Aggregation
+open abdata.gdt --quiet
+list Y = n w
+list groupby = IND YEAR
+matrix mean_values = aggregate(Y, groupby, "mean")
+matrix sd_values = aggregate(Y, groupby, "sd")
+
+printf "\n%12.2f\n", mean_values
+printf "\n%16.1f\n", sd_values
+
+# Textausgabe als txt-Datei speichern
+string filename = "./output/aggregation_mean_output.txt"
+outfile "@filename
+    printf "\n%12.2f\n", mean_values
+end outfile
+
+# Matrix als csv abspeichern
+string filename = "./output/aggregation_als_matrix.csv"
+store "@filename" --matrix=mean_values
+open "@filename" --preserve  # Matrix als Datensatz laden
+
+
+# Dummyvariablen kreieren
+open "./data/abdata.csv" --quiet --preserve
+series DUM = (YEAR == 1977 || YEAR == 1980)
+print YEAR DUM -o --range=1:10
+
+
+# Werte ersetzen
+## Neuen Datensatz mit 4 Beobachtungen erstellen
+nulldata 5 --preserve
+# Generiere Serie mit komischen Werten
+series weird_values = {5, 6, 10, 20, NA}'
+print weird_values --byobs
+
+# Let's replace values
+help replace
+matrix find = {5, 6, 10, 20, NA}
+matrix replace_by = {0, 1, 2, 3, -1}
+
+series y = replace(weird_values, find, replace_by)
+print weird_values y --byobs
+
+# Replace ranges of values
+nulldata 40 --preserve
+
+# Diskrete Zufallszahlen mit Werten zw 0 und 20
+series Var_alt = randgen(i, 0, 20)
+# print Var_alt --byobs
+
+# Ersetze 0-5 durch 1
+series Var_neu = NA
+matrix find = seq(0, 5)
+scalar subst = 1
+series Var_neu = replace(Var_alt, find, subst)
+
+# Ersetze 6-10 durch 2
+matrix find = seq(6, 10)
+scalar subst = 2
+series Var_neu = replace(Var_neu, find, subst)
+
+# Ersetze 11-20 durch 3
+matrix find = seq(11, 20)
+scalar subst = 3
+series Var_neu = replace(Var_neu, find, subst)
+
+print Var_alt Var_neu --byobs
+
+
+
+
+##################################
+open "./data/abdata.csv" --quiet --preserve
+open abdata.csv --quiet --preserve
+
+# OLS
+ols ys const n w #--robust
+
+matrix coeff = $coeff
+matrix stderr = $stderr
+matrix results = coeff ~ stderr
+cnameset(results, defarray("Coeff.", "Stderr."))
+printf "\n%12.3f\n", results
+series uhat = $uhat
+series yhat = $yhat
+
+# Spezifikationstests
+modtest --normality --quiet
+modtest --white --quiet
+reset --squares-only --quiet
+
+# Restriktionen testen
+list X = n w
+ols ys const X
+
+# Test the restriction but do not re-estimate the model
+omit X --test-only
+
+# Test the restriction and re-estimate the model
+omit X
+
+# t-Test: H0: beta(n) = 0, H1: beta(n) != 0
+help omit
+omit n --test-only
+
+# F-Test: H0: beta(n) = beta_(w) 0, H1: beta(n) != 0 und/ oder beta_(w) != 0
+list drop = n w
+omit drop --test-only
+
+# More flexible: the restrict-block
+help restrict
+open abdata.gdt --quiet
+ols ys const n w
+restrict --quiet # --bootstrap
+    b[w] = 0.005
+    b[n] - b[w] = 0
+end restrict
+
+# Print regression equation
+open abdata.gdt --quiet --preserve
+ols ys const n w --quiet
+tabprint --output="./output/regression_equation.tex"
+
+# Print model output
+open abdata.gdt --quiet --preserve
+ols ys const n w --simple
+tabprint --output="./output/regression_output.rtf"
+
+
+# Put multiple regression results into a table
+open abdata.gdt --quiet --preserve
+modeltab free
+m1 <- ols ys const --quiet
+modeltab add
+
+m2 <- ols ys const n --quiet
+modeltab add
+
+m3 <- ols ys const n w --quiet
+modeltab add
+
+modeltab show
+modeltab --output="./output/regression_table.rtf"
+
+
+
+### String-valued series
+set seed 1234
+nulldata 20
+series y = randgen(i, 1, 3)
+setinfo y --description="3 different categories"
+print y --byobs --range=1:5
+# Create strings for categories 1, 2 and 3
+strings series_labels = defarray("Low income",\
+"Medium income", "High income")
+
+# Attache strings to categorical series
+# help stringify
+stringify(y, series_labels)
+print y --byobs --range=1:5
+
+
+
+# Add markers
+nulldata 4
+series y = {1, 2, 3, 1}
+series x = normal()
+
+strings S = defarray("Berlin", "Munich", "Hamburg", "Potsdam")
+markers --from-array=S
+
+print y x -o
+
+
+# Store matrix
+matrix m = mnormal(3, 2)
+string filename = "PATH+FILENAME.csv"
+store "@filename" --matrix=m
+
+
+
+
+
